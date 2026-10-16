@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 2,
+  "title": "Alibi — party-game lobby",
+  "extensions": {
+    "colorMeta": {
+      "action": { "role": "primary", "displayName": "Acid green" },
+      "background": { "role": "neutral", "displayName": "Charcoal" },
+      "surface": { "role": "neutral", "displayName": "Slate panel" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Arcade display", "purpose": "Lobby headline; condensed black lettering with italic emphasis." },
+      "body": { "displayName": "Readable interface", "purpose": "Manrope for body copy and controls." }
+    },
+    "shadows": [
+      { "name": "squad-card", "value": "0 12px 20px #06091445", "purpose": "Separates overlapping introductory player cards." }
+    ],
+    "motion": [
+      { "name": "eye-blink", "value": "6s infinite", "purpose": "Occasional blink confined to avatar art." },
+      { "name": "squad-transition", "value": "transform .25s ease-out", "purpose": "Player-card movement." },
+      { "name": "pack-transition", "value": "border-color .2s, transform .2s", "purpose": "Collection hover feedback." },
+      { "name": "reduced-motion", "value": "animation: none; transition: none", "purpose": "Applied throughout the game world when reduced motion is requested." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "650px" },
+      { "name": "tablet", "value": "900px" },
+      { "name": "compact-desktop", "value": "1150px" },
+      { "name": "wide", "value": "1500px" }
+    ],
+    "surface": {
+      "mode": "operate",
+      "direction": "playable social-deduction party lobby",
+      "implementation": "src/game.css",
+      "mobileReady": "Ready/start action immediately under the room heading, before stage and chat"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acid-green game action with dark ink.",
+      "html": "<button class=\"ds-primary\">START GAME</button>",
+      "css": ".ds-primary{background:var(--accent,#b9f64a);color:#161b20;border:0;border-radius:8px;padding:13px 18px;min-height:44px;font-family:Manrope,Arial,sans-serif;font-size:12px;letter-spacing:.025em;font-weight:800;cursor:pointer}.ds-primary:hover{background:var(--accent-hover,#ccff77);transform:translateY(-2px)}.ds-primary:active{transform:translateY(1px)}.ds-primary:focus-visible{outline:2px solid #c3fc62;outline-offset:3px}"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "description": "Slate alternative action.",
+      "html": "<button class=\"ds-secondary\">Room settings</button>",
+      "css": ".ds-secondary{background:#2a303e;color:#e3e9f6;border:0;box-shadow:inset 0 0 0 1px #414a5d;border-radius:8px;padding:13px 18px;min-height:44px;font-family:Manrope,Arial,sans-serif;font-size:12px;font-weight:800;cursor:pointer}.ds-secondary:hover{background:#353e50}.ds-secondary:focus-visible{outline:2px solid #c3fc62;outline-offset:3px}"
+    },
+    {
+      "name": "Entry field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Dark, outlined name and room-code field.",
+      "html": "<input class=\"ds-input\" aria-label=\"Your name\" placeholder=\"Your name\">",
+      "css": ".ds-input{background:#171d29;color:#f2f5fb;border:1px solid #47556d;border-radius:8px;padding:12px;min-height:47px;font:13px Manrope,Arial,sans-serif}.ds-input::placeholder{color:#a3afc4}.ds-input:hover{border-color:#b9f64a}.ds-input:focus-visible{outline:2px solid #c3fc62;outline-offset:3px}"
+    },
+    {
+      "name": "Party lobby chip",
+      "kind": "chip",
+      "description": "Compact mode label above the stage.",
+      "html": "<span class=\"ds-chip\">PARTY LOBBY</span>",
+      "css": ".ds-chip{display:inline-flex;color:#c1fa61;background:#2a3525;border:1px solid #465934;border-radius:5px;padding:7px 9px;font-family:Manrope,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:.045em}"
+    },
+    {
+      "name": "Lobby stage",
+      "kind": "card",
+      "refersTo": "lobby-stage",
+      "description": "Tonal stage panel with a thin slate border.",
+      "html": "<div class=\"ds-stage\">KEEP YOUR FRIENDS GUESSING.</div>",
+      "css": ".ds-stage{background:#1e2431;border:1px solid #3c4659;border-radius:14px;padding:26px;color:var(--ink,#f4f5fa);font-family:'Barlow Condensed',Manrope,sans-serif;font-size:31px;font-weight:900}"
+    }
+  ],
+  "narrative": {
+    "overview": "The user explicitly rejected the former ivory/sage editorial design as resembling a hotel booking website. The replacement is a playable social-deduction game: charcoal panels, acid-green actions, dense arcade lettering, expressive eye avatars, and an immediate create/join/solo-play path. The old design is not visual authority.",
+    "dos": [
+      "Do extend `src/game.css`, which is imported after the structural baseline in `src/styles.css`, for future UI changes.",
+      "Do keep ready/start directly below the joined-room heading on phones.",
+      "Do use photography for real clip collections and YouTube reveal thumbnails."
+    ],
+    "donts": [
+      "Don't reintroduce cream surfaces, small hospitality-style entry headings, or food photography as the primary hero.",
+      "Don't reveal secret roles through actual roster art; the coral different-clip card belongs only to the labeled five-player example."
+    ]
+  }
+}
