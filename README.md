@@ -73,9 +73,9 @@ Use provider credentials intended for browser clients. ICE configuration must re
 
 ## Video collection
 
-Eight curated related pairs across food, wildlife, science, and music. The mixed bag shuffles all eight. Pair selection stays on the server, and a pair does not repeat until its selected collection is exhausted. The base collection uses distinct video IDs across its pairs. This is a curated library, not live YouTube search or a guarantee of never-seen-before videos.
+Eight curated related pairs across food, wildlife, science, and music. The mixed bag shuffles all eight. Pair selection stays on the server, and a pair does not repeat until its selected collection is exhausted. Reshuffling avoids the immediately preceding pair whenever another pair is available. The browser remembers up to 64 recently assigned or revealed video IDs across rooms, and hosts/guests contribute that history privately to the server so new rooms prefer unseen clips. Once everything has been seen, the least recently encountered pair is preferred. History contains no playback positions and is not exposed in room broadcasts. Small packs still run out: the music pack has one pair, so it necessarily repeats; the room announces when a pack is recycled. The base collection uses distinct video IDs across its pairs. This is a curated library, not live YouTube search or a guarantee of never-seen-before videos.
 
-Curated clips use a selected start point and play only the next 15–30 seconds. Custom pairs use the beginning of each video, so full-length YouTube videos work without trimming or uploading.
+Curated clips use a selected start point (currently 0:15) and play only the next 15–30 seconds. Every round gets a fresh player identity and explicitly reloads its assigned start/end through the YouTube API; the in-game elapsed timer starts at 0:00. A stale player time or end event cannot finish a new clip before its start position has been confirmed. Custom pairs use the beginning of each video, so full-length YouTube videos work without trimming or uploading.
 
 Hosts can also add up to 20 custom pairs per room using public YouTube links. The server validates links through YouTube oEmbed and chooses the assignments randomly. The host will know a custom pair's contents but not the imposter. Playback uses the official YouTube IFrame API. No videos are downloaded or re-hosted. YouTube availability, ads, regional restrictions, and embedding permissions can change; a failed embed offers an external YouTube link so the player can return and continue.
 
@@ -86,7 +86,7 @@ npm test
 npm run build
 ```
 
-Tests cover private assignments, simultaneous clues, input validation, secret votes, scoring and ties, non-repeating pairs, timers, online readiness, full multi-client rounds, reconnects, host handover, and cross-room signaling isolation.
+Tests cover private assignments, simultaneous clues, input validation, secret votes, scoring and ties, non-repeating pairs across shuffle boundaries, recent history across rooms, stale YouTube positions, playback resets, timers, online readiness, full multi-client rounds, reconnects, host handover, and cross-room signaling isolation.
 
 A development-only call harness is available at `/tests/call-harness.html` when running the Vite development server. It creates synthetic camera/audio tracks and exercises the actual `useCall` hook and WebRTC signaling without requesting the user's devices. It is excluded from production builds. Verified in-browser: two peers reach `connected`, tracks mute during private rounds and resume afterward, individual camera/mic toggles work, and leaving clears remote tracks. Real cross-network calling still needs a deployed HTTPS service and configured TURN relay for testing.
 

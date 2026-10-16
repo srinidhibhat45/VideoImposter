@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import { readVideoHistory, rememberVideos } from '../shared/videoHistory.js';
 export function useRoom(notify) {
   const socket = useRef(null);
   const [room, setRoom] = useState(null);
@@ -16,7 +17,13 @@ export function useRoom(notify) {
       if (saved) { try { const credentials = JSON.parse(saved); client.emit('room:resume', credentials, result => { if (result.error) { sessionStorage.removeItem('alibi-session'); setRoom(null); notifyRef.current(result.error); } }); } catch { sessionStorage.removeItem('alibi-session'); } }
     });
     client.on('disconnect', () => setConnected(false));
-    client.on('room:state', value => setRoom(value));
+    client.on('room:state', value => {
+      // Remember only this player's assignment and videos already revealed.
+      // Never send a group's unrevealed pairing back to other clients.
+      const ids = value.reveal?.videos.map(v => v.id) || (value.video ? [value.video.id] : []);
+      if (ids.length) rememberVideos(localStorage, ids);
+      setRoom(value);
+    });
     client.on('session:replaced', () => { sessionStorage.removeItem('alibi-session'); setRoom(null); notifyRef.current('This room was opened in another tab.'); });
     return () => { client.removeAllListeners(); client.disconnect(); socket.current = null; };
   }, []);
@@ -29,7 +36,7 @@ export function useRoom(notify) {
   }), []);
   const enter = async (mode, data) => {
     setBusy(true);
-    try { const result = await emit(mode === 'join' ? 'room:join' : 'room:create', { ...data, practice: mode === 'practice' }); sessionStorage.setItem('alibi-session', JSON.stringify({ code: result.code, token: result.token })); const url = new URL(location.href); if (mode !== 'practice') url.searchParams.set('room', result.code); else url.searchParams.delete('room'); history.replaceState(null, '', url); return true; } catch { return false; } finally { setBusy(false); }
+    try { const result = await emit(mode === 'join' ? 'room:join' : 'room:create', { ...data, practice: mode === 'practice', recentVideos: readVideoHistory(localStorage) }); sessionStorage.setItem('alibi-session', JSON.stringify({ code: result.code, token: result.token })); const url = new URL(location.href); if (mode !== 'practice') url.searchParams.set('room', result.code); else url.searchParams.delete('room'); history.replaceState(null, '', url); return true; } catch { return false; } finally { setBusy(false); }
   };
   const leave = async () => { try { await emit('room:leave'); } catch {} sessionStorage.removeItem('alibi-session'); setRoom(null); const url = new URL(location.href); url.searchParams.delete('room'); history.replaceState(null, '', url); };
   return { socket, room, connected, busy, enter, leave, emit };

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { randomInt } from 'node:crypto';
 import { publicPacks } from './catalog.js';
+import { mergeVideoHistory } from '../shared/videoHistory.js';
 import { createRoom, createPlayer, publicRoom, addMessage, startRound, setSettings, markWatched, submitClue, changePhase, submitVote, tickRoom } from './game.js';
 
 export function makeApp({ testing = false } = {}) {
@@ -45,15 +46,15 @@ export function makeApp({ testing = false } = {}) {
       if (++limits.count > 150) return ack({ error: 'A little too fast. Try again in a moment.' });
       try { await handler(input || {}, ack); } catch (error) { ack({ error: error.message || 'Something went wrong. Please try again.' }); }
     });
-    handle('room:create', ({ name, practice }, ack) => {
+    handle('room:create', ({ name, practice, recentVideos }, ack) => {
       if (socket.data.roomCode) throw new Error('Leave your current room first.');
       if (rooms.size >= 1000) throw new Error('The server is busy. Try again shortly.');
-      const { room, player } = createRoom(name, Boolean(practice));
+      const { room, player } = createRoom(name, Boolean(practice), recentVideos);
       while (rooms.has(room.code)) room.code = createRoom(name).room.code;
       player.socketId = socket.id; rooms.set(room.code, room); socket.join(room.code); socket.data.roomCode = room.code; socket.data.playerId = player.id;
       ack({ token: player.token, code: room.code, playerId: player.id }); broadcast(room);
     });
-    handle('room:join', ({ code, name, token }, ack) => {
+    handle('room:join', ({ code, name, token, recentVideos }, ack) => {
       if (typeof code !== 'string' || !/^[A-Z0-9]{6}$/i.test(code.trim())) throw new Error('Room codes have 6 letters or numbers.');
       const room = rooms.get(code.trim().toUpperCase());
       if (!room) throw new Error('That room does not exist. Double-check the code or create a new room.');
@@ -66,6 +67,7 @@ export function makeApp({ testing = false } = {}) {
         if (room.players.length >= 8) throw new Error('This room is full. Alibi fits up to 8 players.');
         player = createPlayer(name); player.color = room.players.length % 6; room.players.push(player); addMessage(room, 'system', `${player.name} joined. Looking innocent. For now.`);
       } else if (player.socketId && player.socketId !== socket.id) { const old = io.sockets.sockets.get(player.socketId); if (old) { old.emit('session:replaced'); old.disconnect(true); } }
+      room.videoHistory = mergeVideoHistory(recentVideos, room.videoHistory);
       player.socketId = socket.id; player.online = true; delete player.disconnectedAt;
       socket.join(room.code); socket.data.roomCode = room.code; socket.data.playerId = player.id;
       ack({ token: player.token, code: room.code, playerId: player.id }); broadcast(room);

@@ -69,7 +69,7 @@ export default function App() {
         <div className="stage-column">
           <section className={`main-stage ${phase==='lobby'?'lobby-stage':''}`} aria-label="Game stage">
             {phase==='lobby'?<LobbyStage room={room} selected={packs.find(p=>p.id===selected)} onPractice={()=>{if(!name.trim()){setName('You');localStorage.setItem('alibi-name','You');enter('practice',{name:'You'});}else join('practice');}}/>:
-            phase==='watch'?<WatchStage room={room} watched={me?.watched} onDone={()=>act('game:watched')}/>:
+            phase==='watch'?<WatchStage key={room.video.playbackId} room={room} watched={me?.watched} onDone={()=>act('game:watched')}/>:
             phase==='clue'?<div className="phase-stage clue-stage"><div className="phase-symbol lavender"><MessageCircle size={32}/></div><h2>A word to the wise.</h2><p>Describe your video in <strong>one word.</strong><br/>Be specific enough to fit in. Vague enough to keep them guessing.</p><form className="clue-form" onSubmit={submitWord}><label className="sr-only" htmlFor="clue-word">Your one-word clue</label><input id="clue-word" autoFocus placeholder="Your word goes here…" value={me?.clue || word} onChange={e=>setWord(e.target.value)} maxLength={24} disabled={Boolean(me?.clue)} autoComplete="off"/><button className="button primary" disabled={!word.trim()||Boolean(me?.clue)||actionBusy}>{me?.clue?<><Check size={17}/>Locked in</>:<>Lock my clue<LockKeyhole size={15}/></>}</button></form><span className="subtle-note"><LockKeyhole size={13}/>{me?.clue?'Your clue is safe. Waiting for the others…':'Nobody sees your word until everyone has submitted.'}</span><div className="submission-avatars">{room.players.map(p=><span key={p.id} className={p.hasClue?'submitted':''}><Avatar name={p.name} color={p.color}/>{p.hasClue&&<i><Check size={10}/></i>}</span>)}<small>{room.players.filter(p=>p.hasClue).length}/{room.players.length} locked in</small></div></div>:
             phase==='discuss'?<div className="phase-stage discuss-stage"><div className="stage-head"><span><Users size={15}/> The floor is yours</span><span>EVERY WORD IS EVIDENCE</span></div><h2>Somebody’s story<br/>doesn’t add up.</h2><p>Compare your clues. Ask a few questions. Trust nobody too quickly.</p><div className="clue-board">{room.players.map(p=><div key={p.id}><Avatar name={p.name} color={p.color}/><span>{p.name}{p.id===room.myId?' (you)':''}</span><strong>“{p.clue}”</strong></div>)}</div><div className="discussion-actions">{!call.stream&&!room.practice&&<button className="button dark" onClick={()=>call.start()}><Video size={16}/>Join the call</button>}{host?<button className="button primary" onClick={()=>act('game:discuss-end')} disabled={actionBusy}>Ready to vote<ArrowRight size={17}/></button>:<span className="subtle-note">The host can open voting, or wait for the timer.</span>}</div></div>:
             phase==='vote'?<div className="phase-stage vote-stage"><div className="phase-symbol butter"><Flag size={29}/></div><h2>Who’s got a bad alibi?</h2><p>Pick the friend who saw a different video. Your vote is private.</p><div className="vote-grid">{room.players.filter(p=>p.id!==room.myId).map(p=><button key={p.id} onClick={()=>setVote(p.id)} disabled={Boolean(me?.hasVoted)} className={`vote-choice ${vote===p.id || room.myVote===p.id?'selected':''}`}><Avatar name={p.name} color={p.color}/><strong>{p.name}</strong><span>“{p.clue}”</span>{(vote===p.id||room.myVote===p.id)&&<Check className="vote-check" size={16}/>}</button>)}</div><button className="button primary" disabled={!vote||me?.hasVoted||actionBusy} onClick={()=>act('game:vote',{targetId:vote})}>{me?.hasVoted?<><Check size={16}/>Vote locked in</>:<>Lock my vote<LockKeyhole size={15}/></>}</button><span className="subtle-note">{room.players.filter(p=>p.hasVoted).length} of {room.players.length} votes locked in</span></div>:
@@ -102,7 +102,7 @@ function LobbyStage({room,onPractice}) {
 
 let youtubePromise;
 function loadYouTube(){if(window.YT?.Player)return Promise.resolve(window.YT);if(!youtubePromise)youtubePromise=new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{youtubePromise=null;reject(new Error('YouTube took too long to load.'));},15000);window.onYouTubeIframeAPIReady=()=>{clearTimeout(timeout);resolve(window.YT);};const existing=document.querySelector('script[data-youtube-api]');if(existing)existing.remove();const script=document.createElement('script');script.src='https://www.youtube.com/iframe_api';script.dataset.youtubeApi='true';script.onerror=()=>{clearTimeout(timeout);youtubePromise=null;reject(new Error('YouTube could not load.'));};document.head.appendChild(script);});return youtubePromise;}
-function WatchStage({room,watched,onDone}) {
+export function WatchStage({room,watched,onDone}) {
   const mount=useRef(null);const player=useRef(null);const [playing,setPlaying]=useState(false);const [ready,setReady]=useState(false);const [error,setError]=useState('');const [elapsed,setElapsed]=useState(0);const [started,setStarted]=useState(false);const [done,setDone]=useState(false);
   const onDoneRef=useRef(onDone);onDoneRef.current=onDone;
   useEffect(()=>{if(done&&!watched)void onDoneRef.current();},[done,watched]);
@@ -113,19 +113,20 @@ function WatchStage({room,watched,onDone}) {
       if(cancelled)return;
       const node=document.createElement('div');mount.current.replaceChildren(node);
       player.current=new YT.Player(node,{
-        videoId:room.video.id,width:'100%',height:'100%',
-        playerVars:{origin:location.origin,playsinline:1,rel:0,start:room.video.start,end:room.video.start+room.video.seconds,autoplay:1},
+        width:'100%',height:'100%',
+        playerVars:{origin:location.origin,playsinline:1,rel:0,autoplay:0},
         events:{
           onReady:event=>{
             if(cancelled)return;
             setReady(true);
             playback=createClipPlayback(event.target,room.video,{onProgress:setElapsed,onFinish:()=>{setDone(true);setPlaying(false);}});
-            event.target.playVideo();
+            playback.load();
           },
           onError:event=>{if(!cancelled)setError([101,150].includes(event.data)?'This video’s creator has disabled embedded playback.':'YouTube couldn’t play this clip here.');},
           onStateChange:event=>{
             if(cancelled)return;
             setPlaying(event.data===YT.PlayerState.PLAYING);
+            if(event.data===YT.PlayerState.PLAYING)playback?.start();
             if(event.data===YT.PlayerState.ENDED)playback?.finish();
           }
         }

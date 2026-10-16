@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { io as connect } from 'socket.io-client';
 import { makeApp } from '../server/index.js';
+import { pairs } from '../server/catalog.js';
 const emit=(socket,event,data={})=>new Promise((resolve,reject)=>socket.timeout(3000).emit(event,data,(e,r)=>e||r?.error?reject(new Error(r?.error||String(e))):resolve(r)));
 const connectClient=url=>new Promise((resolve,reject)=>{const s=connect(url,{transports:['websocket'],forceNew:true});s.on('connect',()=>resolve(s));s.on('connect_error',reject);});
 const stateAfter=(s,action)=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('No room update')),3000);s.once('room:state',state=>{clearTimeout(timer);resolve(state);});action().catch(reject);});
@@ -24,4 +25,27 @@ test('three independent online clients play a full private round, reconnect, and
 test('unrelated rooms cannot exchange call signals or join an in-progress round',async()=>{
  const game=makeApp({testing:true});await new Promise(resolve=>game.server.listen(0,'127.0.0.1',resolve));const url=`http://127.0.0.1:${game.server.address().port}`;const clients=[];
  try{const a=await connectClient(url);const b=await connectClient(url);clients.push(a,b);const ra=await emit(a,'room:create',{name:'A',practice:true});const rb=await emit(b,'room:create',{name:'B'});await emit(a,'player:media',{inCall:true,mic:true});await emit(b,'player:media',{inCall:true,mic:true});const result=await emit(a,'rtc:signal',{targetId:rb.playerId,signal:{description:{type:'offer',sdp:'test'}}});assert.equal(result.ok,false);await emit(a,'game:start');await emit(b,'room:leave');await assert.rejects(emit(b,'room:join',{code:ra.code,name:'B'}),/practice/);}finally{clients.forEach(s=>s.disconnect());await game.close();}
+});
+
+test('a room accounts for joining players history and preserves selection history after a reset',async()=>{
+ const game=makeApp({testing:true});await new Promise(resolve=>game.server.listen(0,'127.0.0.1',resolve));const url=`http://127.0.0.1:${game.server.address().port}`;const clients=[];
+ try{
+  const host=await connectClient(url);const guest=await connectClient(url);const third=await connectClient(url);clients.push(host,guest,third);
+  const created=await emit(host,'room:create',{name:'Host',recentVideos:pairs.slice(0,4).flatMap(p=>p.videos.map(v=>v.id))});
+  await emit(guest,'room:join',{name:'Guest',code:created.code,recentVideos:pairs.slice(4,-1).flatMap(p=>p.videos.map(v=>v.id))});
+  await emit(third,'room:join',{name:'Third',code:created.code,recentVideos:{invalid:true}});
+  await emit(guest,'player:ready',{ready:true});await emit(third,'player:ready',{ready:true});
+  const watch=await stateAfter(host,()=>emit(host,'game:start'));
+  const room=game.rooms.get(created.code);
+  assert.equal(room.current.id,pairs.at(-1).id);
+  assert.equal(watch.videoHistory,undefined);
+  assert.equal(watch.lastVideoIds,undefined);
+  assert.equal(JSON.stringify(watch).includes('recentVideos'),false);
+  const firstId=room.current.id;const firstPlayback=watch.video.playbackId;
+  await emit(host,'game:reset');
+  const next=await stateAfter(host,()=>emit(host,'game:start'));
+  assert.notEqual(room.current.id,firstId);
+  assert.notEqual(next.video.playbackId,firstPlayback);
+  assert.equal(next.video.start,15);
+ }finally{clients.forEach(s=>s.disconnect());await game.close();}
 });
