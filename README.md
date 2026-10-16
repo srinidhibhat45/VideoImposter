@@ -63,17 +63,19 @@ Use provider credentials intended for browser clients. ICE configuration must re
 
 - One randomly chosen imposter per round. Nobody is told their role.
 - The server sends each player only their own assigned video; it never sends unrevealed role or pair data to other players.
-- All players finish watching, then submit a single Unicode word (up to 24 characters).
+- Clips default to 30 seconds, with a hard maximum of 30. Playback stops and marks the player finished automatically; once everyone finishes, submit a single Unicode word (up to 24 characters). A 15-second loading allowance prevents the room from stalling.
 - Clues become visible together after everyone submits or the timer expires.
 - Discuss by voice/video or room chat. The host may open voting early.
 - Each player votes once for another player. Votes remain hidden until the reveal.
 - A unique most-voted imposter is caught. A tied vote or no votes lets the imposter escape.
 - Correct votes earn 1 point each. An escaping imposter earns 2 points.
-- Choose 3, 5, 8, or 10 rounds; 30/45/60-second clips; and 60/90/120/180-second discussions.
+- Choose 3, 5, 8, or 10 rounds; 15/20/30-second clips; and 60/90/120/180-second discussions.
 
 ## Video collection
 
 Eight curated related pairs across food, wildlife, science, and music. The mixed bag shuffles all eight. Pair selection stays on the server, and a pair does not repeat until its selected collection is exhausted. The base collection uses distinct video IDs across its pairs. This is a curated library, not live YouTube search or a guarantee of never-seen-before videos.
+
+Curated clips use a selected start point and play only the next 15–30 seconds. Custom pairs use the beginning of each video, so full-length YouTube videos work without trimming or uploading.
 
 Hosts can also add up to 20 custom pairs per room using public YouTube links. The server validates links through YouTube oEmbed and chooses the assignments randomly. The host will know a custom pair's contents but not the imposter. Playback uses the official YouTube IFrame API. No videos are downloaded or re-hosted. YouTube availability, ads, regional restrictions, and embedding permissions can change; a failed embed offers an external YouTube link so the player can return and continue.
 

@@ -2,6 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoom, createPlayer, startRound, publicRoom, submitClue, markWatched, changePhase, submitVote, finishRound, tickRoom, setSettings } from '../server/game.js';
 function fixture(count=5){const {room,player}=createRoom('Host');for(let i=1;i<count;i++){const p=createPlayer(`Player ${i}`);p.ready=true;p.color=i;room.players.push(p);}return {room,player};}
+test('clips default to 30 seconds and longer clip settings are rejected',()=>{
+  const {room}=fixture(3);
+  assert.equal(room.clipSeconds,30);
+  for(const seconds of [15,20,30]){setSettings(room,{clipSeconds:seconds});assert.equal(room.clipSeconds,seconds);}
+  for(const seconds of [31,45,60,0,-1,'30'])assert.throws(()=>setSettings(room,{clipSeconds:seconds}),/15, 20, or 30/);
+  startRound(room);
+  for(const p of room.players){const video=publicRoom(room,p.id).video;assert.equal(video.seconds,30);assert.equal(video.start,15);}
+  assert.ok(room.deadline-Date.now()<=45000);
+  assert.equal(tickRoom(room,room.deadline-1),false);
+  assert.equal(tickRoom(room,room.deadline),true);
+  assert.equal(room.phase,'clue');
+});
 test('exactly one player gets the alternate clip, without exposing roles or other private data',()=>{const {room}=fixture();startRound(room);const views=room.players.map(p=>publicRoom(room,p.id));const counts=Object.values(views.reduce((a,v)=>(a[v.video.id]=(a[v.video.id]||0)+1,a),{})).sort();assert.deepEqual(counts,[1,4]);for(const v of views){assert.equal(v.reveal,null);assert.equal(JSON.stringify(v).includes('token'),false);assert.equal(JSON.stringify(v).includes('imposterId'),false);assert.equal(JSON.stringify(v).includes('participantIds'),false);assert.equal(v.video.title,undefined);assert.equal(v.current,undefined);}});
 test('clues stay private and appear simultaneously when all players submit',()=>{const {room}=fixture(3);startRound(room);room.players.forEach(p=>markWatched(room,p));assert.equal(room.phase,'clue');submitClue(room,room.players[0],'lava');assert.equal(publicRoom(room,room.players[1].id).players[0].clue,null);assert.equal(publicRoom(room,room.players[0].id).players[0].clue,'lava');assert.throws(()=>submitClue(room,room.players[0],'again'));assert.throws(()=>submitClue(room,room.players[1],'two words'));assert.throws(()=>submitClue(room,room.players[1],'<script>'));submitClue(room,room.players[1],'warm');submitClue(room,room.players[2],'地球');assert.equal(room.phase,'discuss');assert.equal(publicRoom(room,room.players[2].id).players[0].clue,'lava');assert.equal(publicRoom(room,room.players[2].id).video,null);});
 test('votes stay secret, cannot be changed, and cannot target self or unknown players',()=>{const {room}=fixture(3);startRound(room);changePhase(room,'vote');assert.throws(()=>submitVote(room,room.players[0],room.players[0].id));assert.throws(()=>submitVote(room,room.players[0],'unknown'));submitVote(room,room.players[0],room.players[1].id);assert.equal(publicRoom(room,room.players[2].id).players[0].vote,null);assert.throws(()=>submitVote(room,room.players[0],room.players[2].id));});

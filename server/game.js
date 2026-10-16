@@ -3,7 +3,7 @@ import { pairs, publicPacks } from './catalog.js';
 export const PHASES = ['lobby', 'watch', 'clue', 'discuss', 'vote', 'reveal'];
 export function createRoom(name, practice = false) {
   const host = createPlayer(name);
-  const room = { code: randomBytes(4).toString('hex').slice(0, 6).toUpperCase(), hostId: host.id, players: [host], phase: 'lobby', round: 0, totalRounds: 5, pack: 'mix', discussionSeconds: 90, clipSeconds: 45, practice, used: [], messages: [], updatedAt: Date.now(), deadline: null, current: null, reveal: null, custom: [] };
+  const room = { code: randomBytes(4).toString('hex').slice(0, 6).toUpperCase(), hostId: host.id, players: [host], phase: 'lobby', round: 0, totalRounds: 5, pack: 'mix', discussionSeconds: 90, clipSeconds: 30, practice, used: [], messages: [], updatedAt: Date.now(), deadline: null, current: null, reveal: null, custom: [] };
   addMessage(room, 'system', practice ? 'Welcome to your practice room. These four players are simulated. Try a round, then invite your real suspects.' : `${host.name} opened the room. Let the suspicions begin.`);
   if (practice) ['Alex', 'Maya', 'Jamie', 'Charlie'].forEach((n, i) => room.players.push({ ...createPlayer(n), bot: true, ready: true, color: i + 1 }));
   return { room, player: host };
@@ -31,7 +31,7 @@ export function setSettings(room, input) {
     room.discussionSeconds = input.discussionSeconds;
   }
   if (input.clipSeconds !== undefined) {
-    if (![30, 45, 60].includes(input.clipSeconds)) throw new Error('Choose a clip length from the list.');
+    if (![15, 20, 30].includes(input.clipSeconds)) throw new Error('Choose a 15, 20, or 30-second clip.');
     room.clipSeconds = input.clipSeconds;
   }
 }
@@ -49,7 +49,7 @@ export function startRound(room) {
   const imposter = room.players[randomInt(room.players.length)];
   room.current = { ...selected, videos: swap ? [...selected.videos].reverse() : selected.videos, imposterId: imposter.id, participantIds: room.players.map(p => p.id) };
   if (room.round >= room.totalRounds) { room.round = 0; room.players.forEach(p => p.score = 0); }
-  room.round++; room.phase = 'watch'; room.reveal = null; room.deadline = Date.now() + (room.clipSeconds + 90) * 1000;
+  room.round++; room.phase = 'watch'; room.reveal = null; room.deadline = Date.now() + (room.clipSeconds + 15) * 1000;
   room.players.forEach(p => { p.watched = false; p.clue = null; p.vote = null; });
   addMessage(room, 'system', `Round ${room.round}. Your video is private. Headphones on, poker faces ready.`);
 }
