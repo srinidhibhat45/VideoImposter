@@ -28,7 +28,7 @@ This project includes a Dockerfile and a Render Blueprint. It needs a persistent
 5. If using the optional in-app call, configure a TURN relay (below). Teams calls do not need this.
 6. Open the deployed URL, create a room, and share the invite link. Each friend joins the same public HTTPS app from their own device. No account is needed.
 
-No permanent hosting account, domain, deployment credentials, or TURN credentials are bundled. A temporary HTTPS tunnel can serve the full app for a game night; it depends on this computer remaining awake and connected. See [GAMENIGHT.md](GAMENIGHT.md).
+No permanent hosting account, domain, deployment credentials, or TURN credentials are bundled. A temporary HTTPS tunnel can serve the full app for a game night; it depends on this computer remaining awake and connected. On macOS, `npm run game-night -- start` runs the game and tunnel independently of this chat; `status` checks the URL, and `stop` shuts it down. See [GAMENIGHT.md](GAMENIGHT.md).
 
 ### Docker / any Node host
 

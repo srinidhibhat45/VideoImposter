@@ -19,7 +19,11 @@ Use **The mixed bag** for the most variety: eight curated pairs, shuffled withou
 
 ## Temporary public hosting
 
-For a temporary game night, build with `npm run build`, start the full app with `PORT=3001 npm start`, then run `cloudflared tunnel --url http://127.0.0.1:3001 --no-autoupdate --edge-ip-version 4 --protocol http2`. Share the HTTPS address printed by Cloudflare. The URL lasts only while the tunnel runs. Keep the Mac plugged in, awake, connected to the internet, and with the lid open. Restarting the app ends rooms. Cloudflare Quick Tunnels have no uptime guarantee; use the Render configuration in README for permanent hosting.
+On macOS with the official `cloudflared` package installed, build once with `npm run build`, then run `npm run game-night -- start`. Share the HTTPS address it prints. The app, tunnel, and sleep prevention run as macOS background jobs independently of the terminal or chat. They do not automatically start after logout or reboot.
+
+Run `npm run game-night -- status` to see the current URL, health, and log directory. Run `npm run game-night -- stop` after playing to stop hosting and release sleep prevention. Starting an already healthy host returns its existing URL; it does not restart active rooms.
+
+The URL lasts only while its tunnel runs; a new tunnel gets a new URL. Keep the Mac plugged in, connected to the internet, and with the lid open. Restarting the app ends rooms. Cloudflare Quick Tunnels have no uptime guarantee; use the Render configuration in README for permanent hosting. A 1033 error means Cloudflare has no working tunnel connection: check status, then stop/start if needed and share the replacement URL.
 
 ## Checks performed
 
