@@ -49,3 +49,35 @@ test('a room accounts for joining players history and preserves selection histor
   assert.equal(next.video.start,15);
  }finally{clients.forEach(s=>s.disconnect());await game.close();}
 });
+
+test('seven players finish a private round; clip recovery, ICE bursts, reconnects and capacity remain safe',async()=>{
+ const game=makeApp({testing:true});await new Promise(resolve=>game.server.listen(0,'127.0.0.1',resolve));const url=`http://127.0.0.1:${game.server.address().port}`;const clients=[];
+ try{
+  for(let i=0;i<9;i++)clients.push(await connectClient(url));
+  const created=await emit(clients[0],'room:create',{name:'Player 1'});const joins=[created];
+  for(let i=1;i<7;i++){joins.push(await emit(clients[i],'room:join',{code:created.code,name:`Player ${i+1}`}));await emit(clients[i],'player:ready',{ready:true});}
+  await assert.rejects(emit(clients[7],'room:join',{code:created.code,name:'PLAYER 1'}),/name is already/);
+  const states=Array(7);clients.slice(0,7).forEach((s,i)=>s.on('room:state',v=>states[i]=v));
+  await stateAfter(clients[6],()=>emit(clients[0],'game:start'));
+  const counts=Object.values(states.reduce((a,s)=>(a[s.video.id]=(a[s.video.id]||0)+1,a),{})).sort();assert.deepEqual(counts,[1,6]);
+  await assert.rejects(emit(clients[7],'room:join',{code:created.code,name:'Late'}),/progress/);
+  const original=states[0].video.playbackId;
+  await emit(clients[2],'game:clip-problem');await assert.rejects(emit(clients[2],'game:replace'),/host/);
+  await stateAfter(clients[6],()=>emit(clients[0],'game:replace'));
+  assert.equal(states[6].round,1);assert.notEqual(states[6].video.playbackId,original);assert.ok(states[6].players.every(p=>!p.videoProblem&&!p.watched&&p.score===0));
+  await emit(clients[0],'player:media',{inCall:true});await emit(clients[1],'player:media',{inCall:true});
+  await Promise.all(Array.from({length:200},()=>emit(clients[0],'rtc:signal',{targetId:joins[1].playerId,signal:{candidate:{candidate:'test'}}})));
+  await Promise.all(clients.slice(0,7).map(s=>emit(s,'game:watched')));
+  await emit(clients[0],'game:clue',{word:'first'});assert.equal(game.rooms.get(created.code).phase,'clue');
+  const hidden=await stateAfter(clients[6],()=>emit(clients[1],'game:clue',{word:'second'}));assert.equal(hidden.players[0].clue,null);
+  clients[2].disconnect();clients[2]=await connectClient(url);const restored=await stateAfter(clients[2],()=>emit(clients[2],'room:resume',{code:created.code,token:joins[2].token}));assert.equal(restored.myId,joins[2].playerId);assert.equal(restored.phase,'clue');assert.equal(restored.players[2].inCall,false);
+  for(let i=2;i<7;i++)await emit(clients[i],'game:clue',{word:`word${i}`});
+  const room=game.rooms.get(created.code);assert.equal(room.phase,'discuss');await emit(clients[0],'game:discuss-end');
+  const imp=room.current.imposterId;for(let i=0;i<7;i++)await emit(clients[i],'game:vote',{targetId:joins[i].playerId===imp?joins.find(p=>p.playerId!==imp).playerId:imp});
+  assert.equal(room.phase,'reveal');assert.equal(room.reveal.caught,true);assert.equal(room.reveal.votes.length,7);
+  const next=await stateAfter(clients[6],()=>emit(clients[0],'game:start'));assert.equal(next.round,2);assert.notEqual(next.video.playbackId,original);
+  await emit(clients[0],'room:leave');assert.equal(room.phase,'lobby');assert.equal(room.hostId,joins[1].playerId);
+  await emit(clients[7],'room:join',{code:created.code,name:'Player 8'});await emit(clients[8],'room:join',{code:created.code,name:'Player 9'});
+  const extra=await connectClient(url);clients.push(extra);await assert.rejects(emit(extra,'room:join',{code:created.code,name:'Full'}),/full/);
+ }finally{clients.forEach(s=>s.disconnect());await game.close();}
+});

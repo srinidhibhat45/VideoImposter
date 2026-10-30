@@ -104,3 +104,6 @@ GameFace is a crisp, code-native avatar glyph: one rounded colored tile, a dark 
 - Don't reveal secret roles through actual roster art; the coral different-clip card belongs only to the labeled five-player example.
 
 Secret assignments, simultaneous clues, voting, timers, online room behavior, and call logic are preserved.
+
+## Game-night refinements
+Keep the arcade identity. A compact three-step lobby guide and phase-specific headings carry instructions. Seven/eight-player seats use four columns on desktop and three on phones; six use three columns. Mobile form inputs use 16px to avoid focus zoom. Supporting 11/13/14/16/17px sizes distinguish metadata, controls, and recovery text. Amber recovery surfaces (#30291a, #ffe3a8) signal a clip issue without revealing a role. Teams muting is manual and must be described separately from optional in-app voice.

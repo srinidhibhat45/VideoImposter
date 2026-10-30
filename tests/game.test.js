@@ -10,7 +10,7 @@ test('clips default to 30 seconds and longer clip settings are rejected',()=>{
   for(const seconds of [31,45,60,0,-1,'30'])assert.throws(()=>setSettings(room,{clipSeconds:seconds}),/15, 20, or 30/);
   startRound(room);
   for(const p of room.players){const video=publicRoom(room,p.id).video;assert.equal(video.seconds,30);assert.equal(video.start,15);}
-  assert.ok(room.deadline-Date.now()<=45000);
+  assert.ok(room.deadline-Date.now()<=60000);
   assert.equal(tickRoom(room,room.deadline-1),false);
   assert.equal(tickRoom(room,room.deadline),true);
   assert.equal(room.phase,'clue');

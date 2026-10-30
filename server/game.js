@@ -13,7 +13,7 @@ export function createRoom(name, practice = false, recentVideos = []) {
 }
 export function createPlayer(name) {
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 20) throw new Error('Choose a name between 1 and 20 characters.');
-  return { id: randomUUID(), token: randomBytes(24).toString('hex'), name: name.trim(), color: 0, ready: false, online: true, mic: false, camera: false, inCall: false, watched: false, clue: null, vote: null, score: 0, bot: false };
+  return { id: randomUUID(), token: randomBytes(24).toString('hex'), name: name.trim(), color: 0, ready: false, online: true, mic: false, camera: false, inCall: false, watched: false, videoProblem: false, clue: null, vote: null, score: 0, bot: false };
 }
 export function addMessage(room, type, text, player = null) {
   room.messages.push({ id: randomUUID(), type, text, name: player?.name || 'Alibi', playerId: player?.id || null, at: Date.now() });
@@ -38,8 +38,8 @@ export function setSettings(room, input) {
     room.clipSeconds = input.clipSeconds;
   }
 }
-export function startRound(room) {
-  if (!['lobby', 'reveal'].includes(room.phase)) throw new Error('Finish the current round first.');
+export function startRound(room, { replace = false } = {}) {
+  if (replace ? room.phase !== 'watch' : !['lobby', 'reveal'].includes(room.phase)) throw new Error('Finish the current round first.');
   if (room.players.filter(p => p.online).length < 3) throw new Error('Bring at least 3 players into the room.');
   if (room.players.some(p => !p.online || !p.ready && p.id !== room.hostId)) throw new Error('Everyone needs to be online and ready.');
   const pool = room.pack === 'custom' ? room.custom : pairs.filter(p => room.pack === 'mix' || p.pack === room.pack);
@@ -62,11 +62,14 @@ export function startRound(room) {
   const swap = randomInt(2);
   const imposter = room.players[randomInt(room.players.length)];
   room.current = { ...selected, playbackId: randomUUID(), videos: swap ? [...selected.videos].reverse() : selected.videos, imposterId: imposter.id, participantIds: room.players.map(p => p.id) };
-  if (room.round >= room.totalRounds) { room.round = 0; room.players.forEach(p => p.score = 0); }
-  room.round++; room.phase = 'watch'; room.reveal = null; room.deadline = Date.now() + (room.clipSeconds + 15) * 1000;
-  room.players.forEach(p => { p.watched = false; p.clue = null; p.vote = null; });
+  if (!replace) {
+    if (room.round >= room.totalRounds) { room.round = 0; room.players.forEach(p => p.score = 0); }
+    room.round++;
+  }
+  room.phase = 'watch'; room.reveal = null; room.deadline = Date.now() + (room.clipSeconds + 30) * 1000;
+  room.players.forEach(p => { p.watched = false; p.videoProblem = false; p.clue = null; p.vote = null; });
   if (recycled) addMessage(room, 'system', 'You’ve played every pair in this pack. Replaying its least recent clips; choose another pack or add custom pairs for fresh videos.');
-  addMessage(room, 'system', `Round ${room.round}. Your video is private. Headphones on, poker faces ready.`);
+  addMessage(room, 'system', replace ? 'The host replaced the clips. Same round, no points lost. Everyone has a fresh private video.' : `Round ${room.round}. Play your private clip now, then submit one word. Headphones on.`);
 }
 export function changePhase(room, phase) {
   room.phase = phase;

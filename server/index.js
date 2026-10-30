@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { randomInt } from 'node:crypto';
+import { randomInt, createHmac } from 'node:crypto';
 import { publicPacks } from './catalog.js';
 import { mergeVideoHistory } from '../shared/videoHistory.js';
 import { createRoom, createPlayer, publicRoom, addMessage, startRound, setSettings, markWatched, submitClue, changePhase, submitVote, tickRoom } from './game.js';
@@ -22,7 +22,16 @@ export function makeApp({ testing = false } = {}) {
   const rooms = new Map();
   app.get('/api/health', (req, res) => res.json({ ok: true, service: 'alibi', rooms: rooms.size }));
   app.get('/api/packs', (req, res) => res.json(publicPacks()));
-  app.get('/api/config', (req, res) => res.json({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, ...(process.env.TURN_URL ? [{ urls: process.env.TURN_URL.split(','), username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL }] : [])], hasTurn: Boolean(process.env.TURN_URL) }));
+  app.get('/api/config', (req, res) => {
+    let username = process.env.TURN_USERNAME;
+    let credential = process.env.TURN_CREDENTIAL;
+    if (process.env.TURN_SECRET) {
+      username = `${Math.floor(Date.now() / 1000) + 12 * 3600}:alibi`;
+      credential = createHmac('sha1', process.env.TURN_SECRET).update(username).digest('base64');
+    }
+    const relay = Boolean(process.env.TURN_URL && username && credential);
+    res.set('Cache-Control', 'no-store').json({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, ...(relay ? [{ urls: process.env.TURN_URL.split(',').map(v => v.trim()).filter(Boolean), username, credential }] : [])], hasTurn: relay });
+  });
   const broadcast = room => { room.updatedAt = Date.now(); for (const p of room.players) if (p.socketId) io.to(p.socketId).emit('room:state', publicRoom(room, p.id)); };
   const find = socket => {
     const room = rooms.get(socket.data.roomCode);
@@ -39,11 +48,13 @@ export function makeApp({ testing = false } = {}) {
     addMessage(room, 'system', `${player.name} left the room.`); broadcast(room);
   };
   io.on('connection', socket => {
-    let limits = { at: Date.now(), count: 0 };
+    let limits = { at: Date.now(), count: 0, signals: 0 };
     const handle = (name, handler) => socket.on(name, async (input = {}, ack = () => {}) => {
       if (typeof ack !== 'function') ack = () => {};
-      if (Date.now() - limits.at > 10000) limits = { at: Date.now(), count: 0 };
-      if (++limits.count > 150) return ack({ error: 'A little too fast. Try again in a moment.' });
+      if (Date.now() - limits.at > 10000) limits = { at: Date.now(), count: 0, signals: 0 };
+      // Seven cameras negotiate 21 peer connections. Keep ICE bursts from
+      // consuming the budget for clues, votes, and other game actions.
+      if (name === 'rtc:signal' ? ++limits.signals > 800 : ++limits.count > 150) return ack({ error: 'A little too fast. Try again in a moment.' });
       try { await handler(input || {}, ack); } catch (error) { ack({ error: error.message || 'Something went wrong. Please try again.' }); }
     });
     handle('room:create', ({ name, practice, recentVideos }, ack) => {
@@ -65,7 +76,9 @@ export function makeApp({ testing = false } = {}) {
         if (socket.data.roomCode) throw new Error('You are already in this room.');
         if (room.phase !== 'lobby' && room.phase !== 'reveal') throw new Error('A round is in progress. Join when the reveal is over.');
         if (room.players.length >= 8) throw new Error('This room is full. Alibi fits up to 8 players.');
-        player = createPlayer(name); player.color = room.players.length % 6; room.players.push(player); addMessage(room, 'system', `${player.name} joined. Looking innocent. For now.`);
+        player = createPlayer(name);
+        if (room.players.some(p => p.name.normalize('NFKC').toLowerCase() === player.name.normalize('NFKC').toLowerCase())) throw new Error('That name is already in the room. Add an initial or choose another name.');
+        player.color = room.players.length % 6; room.players.push(player); addMessage(room, 'system', `${player.name} joined. Looking innocent. For now.`);
       } else if (player.socketId && player.socketId !== socket.id) { const old = io.sockets.sockets.get(player.socketId); if (old) { old.emit('session:replaced'); old.disconnect(true); } }
       room.videoHistory = mergeVideoHistory(recentVideos, room.videoHistory);
       player.socketId = socket.id; player.online = true; delete player.disconnectedAt;
@@ -85,6 +98,8 @@ export function makeApp({ testing = false } = {}) {
     handle('player:ready', ({ ready }, ack) => { const { room, player } = find(socket); if (!['lobby', 'reveal'].includes(room.phase)) throw new Error('Wait until the round ends.'); player.ready = Boolean(ready); broadcast(room); ack({ ok: true }); });
     handle('room:settings', (input, ack) => { const { room, player } = find(socket); requireHost(room, player); setSettings(room, input); broadcast(room); ack({ ok: true }); });
     handle('game:start', (_, ack) => { const { room, player } = find(socket); requireHost(room, player); startRound(room); broadcast(room); ack({ ok: true }); });
+    handle('game:replace', (_, ack) => { const { room, player } = find(socket); requireHost(room, player); startRound(room, { replace: true }); broadcast(room); ack({ ok: true }); });
+    handle('game:clip-problem', (_, ack) => { const { room, player } = find(socket); if (room.phase !== 'watch') throw new Error('Report a clip while the videos are open.'); if (!player.videoProblem) { player.videoProblem = true; addMessage(room, 'system', `${player.name} can’t play their clip. The host can replace both clips for everyone.`); } broadcast(room); ack({ ok: true }); });
     handle('game:watched', (_, ack) => { const { room, player } = find(socket); markWatched(room, player); broadcast(room); ack({ ok: true }); });
     handle('game:clue', ({ word }, ack) => { const { room, player } = find(socket); submitClue(room, player, word); broadcast(room); ack({ ok: true }); });
     handle('game:vote', ({ targetId }, ack) => { const { room, player } = find(socket); submitVote(room, player, targetId); broadcast(room); ack({ ok: true }); });
